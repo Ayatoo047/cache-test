@@ -21,6 +21,8 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from cache_test.transformer import TransformerError
+
 logger = logging.getLogger(__name__)
 
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -135,9 +137,12 @@ async def _unhandled_error(request: Request, exc: Exception) -> JSONResponse:
         request, status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal server error"
     )
 
+async def _transformer_error(request: Request, exc: TransformerError) -> JSONResponse:
+    return _error_response(request, status.HTTP_502_BAD_GATEWAY, f"Transformer failed: {exc}")
 
 def install(app: FastAPI) -> None:
     app.middleware("http")(_assign_request_id)
     app.add_exception_handler(StarletteHTTPException, _http_error)
     app.add_exception_handler(RequestValidationError, _validation_error)
+    app.add_exception_handler(TransformerError, _transformer_error)
     app.add_exception_handler(Exception, _unhandled_error)
