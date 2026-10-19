@@ -9,3 +9,5 @@ class Settings(BaseSettings):
     # SQLite keeps the service self-contained; any SQLAlchemy URL works, and
     # the conflict-tolerant inserts in the repository also support PostgreSQL.
     database_url: str = "sqlite:///./cache.db"
+
+    transformer_delay_seconds: float = 0.1

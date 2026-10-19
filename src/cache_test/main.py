@@ -6,13 +6,17 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from cache_test.api.api import router
+from cache_test.api.api import router as api_router
+from cache_test.api.payload import router as payload_router
 from cache_test.config import Settings
 from cache_test.db import create_db_engine, create_session_factory, init_db
+from cache_test.transformer import SimulatedTransformer, Transformer
 from cache_test.utils import envelope
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, transformer: Transformer | None = None
+) -> FastAPI:
     """Build the application.
 
     Dependencies are injected here rather than imported as globals so tests
@@ -29,7 +33,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Caching service", lifespan=lifespan)
     app.state.session_factory = create_session_factory(engine)
-    app.include_router(router)
+    app.state.transformer = transformer or SimulatedTransformer(
+        settings.transformer_delay_seconds
+    )
+    app.include_router(api_router)
+    app.include_router(payload_router)
     envelope.install(app)
 
     return app
