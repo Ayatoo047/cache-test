@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-cache-test = "cache_test:main"
+cache-test = "cache_test.main:run"
 
 [build-system]
 requires = ["uv_build>=0.9.17,<0.10.0"]

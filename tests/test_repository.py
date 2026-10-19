@@ -17,7 +17,10 @@ def test_add_and_get_transformations(session: Session) -> None:
     transfomer_repo.add_transformations(session, {"a": "A"})
     transfomer_repo.add_transformations(session, {"b": "B"})
 
-    assert transfomer_repo.get_transformations(session, ["a", "b", "missing"]) == {"a": "A", "b": "B"}
+    assert transfomer_repo.get_transformations(session, ["a", "b", "missing"]) == {
+        "a": "A",
+        "b": "B",
+    }
 
 
 def test_add_transformations_rejects_existing_entries(session: Session) -> None:
