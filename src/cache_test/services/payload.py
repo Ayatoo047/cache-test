@@ -8,7 +8,7 @@ from collections.abc import Iterable, Sequence
 from sqlalchemy.orm import Session
 
 from cache_test.models import Payload
-from cache_test.repositories import payload_repo, transfomer_repo
+from cache_test.repositories import payload_repo, transformer_repo
 from cache_test.transformer import Transformer
 
 
@@ -63,7 +63,7 @@ class PayloadService:
     def _transform_all(self, values: Iterable[str]) -> dict[str, str]:
         """Transform each distinct value, calling the transformer only on cache misses."""
         unique = list(dict.fromkeys(values))
-        results = transfomer_repo.get_transformations(self._session, unique)
+        results = transformer_repo.get_transformations(self._session, unique)
 
         fresh: dict[str, str] = {}
         try:
@@ -73,7 +73,7 @@ class PayloadService:
         finally:
             # Persist whatever the transformer produced even if a later call
             # failed, so a retry does not pay for those results again.
-            transfomer_repo.add_transformations(self._session, fresh)
+            transformer_repo.add_transformations(self._session, fresh)
             self._session.commit()
 
         return results | fresh
