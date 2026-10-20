@@ -1,0 +1,16 @@
+services:
+  cache-test:
+    build: .
+    image: cache-test
+    ports:
+      # Host port 8765, because 8000 is often taken locally; the app listens on 8000.
+      - "8765:8000"
+    environment:
+      CACHE_TEST_TRANSFORMER_DELAY_SECONDS: "0.1"
+    volumes:
+      # The SQLite database lives here, so the cache survives restarts.
+      - cache-data:/data
+    restart: unless-stopped
+
+volumes:
+  cache-data:

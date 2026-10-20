@@ -1,0 +1,9 @@
+.git
+.venv
+.pytest_cache
+.ruff_cache
+.qodo
+**/__pycache__
+*.db
+tests
+examples
