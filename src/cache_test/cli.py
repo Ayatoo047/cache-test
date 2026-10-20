@@ -115,11 +115,39 @@ def _open_output(output: Path | str) -> Iterator[TextIO]:
 
 
 def _describe_validation_error(exc: ValidationError) -> str:
-   return f"invalid input: {str(exc)}"
+    lines = []
+    for error in exc.errors():
+        location = ".".join(str(part) for part in error["loc"])
+        # Pydantic prefixes messages from custom validators; drop the noise.
+        message = error["msg"].removeprefix("Value error, ")
+        lines.append(f"  {location}: {message}" if location else f"  {message}")
+    return "\n".join(lines)
 
 
 def _describe_http_error(exc: httpx.HTTPError) -> str:
-    return f"request failed: {exc}" if not isinstance(exc, httpx.HTTPStatusError) else "Request failed with HTTP status error"
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = exc.response
+        # Non-JSON bodies (e.g. an HTML error page from a proxy or the wrong
+        # server) are not useful on a terminal, so fall back to the reason.
+        try:
+            body = response.json()
+            detail = body["message"]
+        except (ValueError, KeyError, TypeError):
+            return f"server responded {response.status_code}: {response.reason_phrase}"
+        summary = f"server responded {response.status_code}: {detail}"
+        if request_id := body.get("requestId"):
+            summary += f" (request id {request_id})"
+        lines = [summary]
+        errors = body.get("errors")
+        # Bodies from proxies or other API versions may carry errors in
+        # another shape; show only the entries this client understands.
+        for error in errors if isinstance(errors, list) else []:
+            if isinstance(error, dict) and "message" in error:
+                field = error.get("field")
+                lines.append(f"  {field}: {error['message']}" if field else f"  {error['message']}")
+        return "\n".join(lines)
+    return f"request failed: {exc}"
+
 
 
 def main(argv: Sequence[str] | None = None) -> int:
