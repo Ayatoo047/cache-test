@@ -137,8 +137,12 @@ async def _unhandled_error(request: Request, exc: Exception) -> JSONResponse:
         request, status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal server error"
     )
 
+
 async def _transformer_error(request: Request, exc: TransformerError) -> JSONResponse:
-    return _error_response(request, status.HTTP_502_BAD_GATEWAY, f"Transformer failed: {exc}")
+    return _error_response(
+        request, status.HTTP_502_BAD_GATEWAY, f"Transformer failed: {exc}"
+    )
+
 
 def install(app: FastAPI) -> None:
     app.middleware("http")(_assign_request_id)
