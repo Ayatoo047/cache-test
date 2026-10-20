@@ -89,12 +89,17 @@ def test_cache_survives_restart(
 
     assert transformer.calls == {"a": 1, "b": 1}
 
+def test_read_payload_is_cacheable_for_an_hour(client: TestClient) -> None:
+    response = client.get(f"/payload/{create(client)}")
+
+    assert response.headers["Cache-Control"] == "public, max-age=3600"
 
 def test_read_unknown_payload_returns_404(client: TestClient) -> None:
     response = client.get(f"/payload/{uuid.uuid4()}")
 
     body = assert_envelope(response, 404, "Payload not found")
     assert body["data"] is None
+    assert "Cache-Control" not in response.headers
 
 
 def test_read_malformed_id_returns_422(client: TestClient) -> None:

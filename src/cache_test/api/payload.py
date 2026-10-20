@@ -13,6 +13,10 @@ from cache_test.utils.envelope import ApiResponse, ErrorResponse, _success
 
 router = APIRouter()
 
+# A payload never changes once created, but an hour keeps the window short
+# should that ever change (e.g. deletes). Not set on 404s: the id may be
+# created later.
+PAYLOAD_CACHE_CONTROL = "public, max-age=3600"
 
 def get_session(request: Request) -> Iterator[Session]:
     with request.app.state.session_factory() as session:
@@ -64,6 +68,8 @@ def read_payload(
     payload = service.get_payload(payload_id)
     if payload is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Payload not found")
+
+    response.headers["Cache-Control"] = PAYLOAD_CACHE_CONTROL
     return _success(
         request, response, PayloadRead(output=payload.output), "Payload retrieved"
     )
