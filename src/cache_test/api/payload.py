@@ -18,6 +18,7 @@ router = APIRouter()
 # created later.
 PAYLOAD_CACHE_CONTROL = "public, max-age=3600"
 
+
 def get_session(request: Request) -> Iterator[Session]:
     with request.app.state.session_factory() as session:
         yield session
@@ -70,6 +71,4 @@ def read_payload(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Payload not found")
 
     response.headers["Cache-Control"] = PAYLOAD_CACHE_CONTROL
-    return _success(
-        request, response, PayloadRead(output=payload.output), "Payload retrieved"
-    )
+    return _success(request, response, PayloadRead(output=payload.output), "Payload retrieved")

@@ -14,9 +14,7 @@ def get_transformations(session: Session, inputs: Iterable[str]) -> dict[str, st
     if not inputs:
         return {}
     rows = session.execute(
-        select(Transformation.input, Transformation.output).where(
-            Transformation.input.in_(inputs)
-        )
+        select(Transformation.input, Transformation.output).where(Transformation.input.in_(inputs))
     )
     return {row.input: row.output for row in rows}
 

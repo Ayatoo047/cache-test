@@ -29,7 +29,6 @@ from pydantic_settings import BaseSettings, CliSettingsSource, SettingsConfigDic
 from cache_test.schemas.payload import PayloadCreate
 
 
-
 class CliSettings(BaseSettings):
     """Create payloads on the caching service and read them back."""
 
@@ -42,7 +41,7 @@ class CliSettings(BaseSettings):
         env_prefix="CACHE_CLI_",
     )
 
-    host: HttpUrl = Field(HttpUrl("http://localhost:8000"), description="URL of the service")
+    host: HttpUrl = Field(HttpUrl("http://localhost:8765"), description="URL of the service")
     repeat: PositiveInt = Field(1, description="number of iterations")
     input: Literal["-"] | FilePath | None = Field(
         None, description='JSON input file, "-" for stdin (default when --json is not given)'
@@ -147,7 +146,6 @@ def _describe_http_error(exc: httpx.HTTPError) -> str:
                 lines.append(f"  {field}: {error['message']}" if field else f"  {error['message']}")
         return "\n".join(lines)
     return f"request failed: {exc}"
-
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -21,7 +21,7 @@ class TestParseArgs:
     def test_defaults(self) -> None:
         settings = cli.parse_args([])
 
-        assert str(settings.host) == "http://localhost:8000/"
+        assert str(settings.host) == "http://localhost:8765/"
         assert settings.repeat == 1
         assert settings.input is None
         assert settings.output == "-"
@@ -40,7 +40,7 @@ class TestParseArgs:
     def test_ignores_unprefixed_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HOST", "not-a-url")
 
-        assert str(cli.parse_args([]).host) == "http://localhost:8000/"
+        assert str(cli.parse_args([]).host) == "http://localhost:8765/"
 
     @pytest.mark.parametrize(
         "argv",

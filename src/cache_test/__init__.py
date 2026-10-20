@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from cache-test!")
+"""Caching microservice for generated payloads."""

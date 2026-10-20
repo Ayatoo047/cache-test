@@ -14,9 +14,7 @@ def get_payload(session: Session, payload_id: uuid.UUID) -> Payload | None:
 
 
 def get_payload_by_hash(session: Session, input_hash: str) -> Payload | None:
-    return session.scalars(
-        select(Payload).where(Payload.input_hash == input_hash)
-    ).one_or_none()
+    return session.scalars(select(Payload).where(Payload.input_hash == input_hash)).one_or_none()
 
 
 def add_payload(session: Session, input_hash: str, output: str) -> tuple[Payload, bool]:

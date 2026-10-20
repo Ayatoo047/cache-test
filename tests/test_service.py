@@ -39,9 +39,7 @@ class TestPayloadService:
     def test_generates_interleaved_output(
         self, session: Session, transformer: CountingTransformer
     ) -> None:
-        payload, created = PayloadService(session, transformer).create_payload(
-            LIST_1, LIST_2
-        )
+        payload, created = PayloadService(session, transformer).create_payload(LIST_1, LIST_2)
 
         assert created
         assert payload.output == (
@@ -64,9 +62,7 @@ class TestPayloadService:
     def test_transforms_each_distinct_string_once(
         self, session: Session, transformer: CountingTransformer
     ) -> None:
-        PayloadService(session, transformer).create_payload(
-            ["a", "b", "a"], ["b", "c", "a"]
-        )
+        PayloadService(session, transformer).create_payload(["a", "b", "a"], ["b", "c", "a"])
 
         assert transformer.calls == {"a": 1, "b": 1, "c": 1}
 

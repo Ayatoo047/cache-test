@@ -14,9 +14,7 @@ from cache_test.transformer import SimulatedTransformer, Transformer
 from cache_test.utils import envelope
 
 
-def create_app(
-    settings: Settings | None = None, transformer: Transformer | None = None
-) -> FastAPI:
+def create_app(settings: Settings | None = None, transformer: Transformer | None = None) -> FastAPI:
     """Build the application.
 
     Dependencies are injected here rather than imported as globals so tests
@@ -33,9 +31,7 @@ def create_app(
 
     app = FastAPI(title="Caching service", lifespan=lifespan)
     app.state.session_factory = create_session_factory(engine)
-    app.state.transformer = transformer or SimulatedTransformer(
-        settings.transformer_delay_seconds
-    )
+    app.state.transformer = transformer or SimulatedTransformer(settings.transformer_delay_seconds)
     app.include_router(api_router)
     app.include_router(payload_router)
     envelope.install(app)

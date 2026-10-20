@@ -20,9 +20,7 @@ def hash_inputs(list_1: Sequence[str], list_2: Sequence[str]) -> str:
     """The lists are serialised as a whole (not concatenated strings) so that
     ["a,b"]  and ["a", "b"] will not produce the same hash.
     """
-    canonical = json.dumps(
-        [list(list_1), list(list_2)], ensure_ascii=False, separators=(",", ":")
-    )
+    canonical = json.dumps([list(list_1), list(list_2)], ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
@@ -31,9 +29,7 @@ class PayloadService:
         self._session = session
         self._transformer = transformer
 
-    def create_payload(
-        self, list_1: Sequence[str], list_2: Sequence[str]
-    ) -> tuple[Payload, bool]:
+    def create_payload(self, list_1: Sequence[str], list_2: Sequence[str]) -> tuple[Payload, bool]:
         """Return the payload for the given lists and whether it was newly created.
 
         An identical earlier request short-circuits everything, including
@@ -49,9 +45,7 @@ class PayloadService:
 
         transformed = self._transform_all([*list_1, *list_2])
         output = ", ".join(
-            interleave(
-                [transformed[s] for s in list_1], [transformed[s] for s in list_2]
-            )
+            interleave([transformed[s] for s in list_1], [transformed[s] for s in list_2])
         )
         payload, created = payload_repo.add_payload(self._session, input_hash, output)
         self._session.commit()

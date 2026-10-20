@@ -106,14 +106,10 @@ async def _assign_request_id(
 
 
 async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    return _error_response(
-        request, exc.status_code, str(exc.detail), headers=exc.headers
-    )
+    return _error_response(request, exc.status_code, str(exc.detail), headers=exc.headers)
 
 
-async def _validation_error(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     # Pydantic's raw errors echo the offending input back, which can be as
     # large as the request itself; only the location and reason are kept.
     errors = [
@@ -133,15 +129,11 @@ async def _unhandled_error(request: Request, exc: Exception) -> JSONResponse:
     # Starlette re-raises the exception after this handler, so the server logs
     # the traceback; this line links it to the request id the client saw.
     logger.error("Unhandled error for request %s", get_request_id(request))
-    return _error_response(
-        request, status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal server error"
-    )
+    return _error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal server error")
 
 
 async def _transformer_error(request: Request, exc: TransformerError) -> JSONResponse:
-    return _error_response(
-        request, status.HTTP_502_BAD_GATEWAY, f"Transformer failed: {exc}"
-    )
+    return _error_response(request, status.HTTP_502_BAD_GATEWAY, f"Transformer failed: {exc}")
 
 
 def install(app: FastAPI) -> None:

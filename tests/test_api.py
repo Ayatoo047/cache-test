@@ -26,9 +26,7 @@ def settings(tmp_path: Path) -> Settings:
 
 
 @pytest.fixture
-def client(
-    settings: Settings, transformer: CountingTransformer
-) -> Iterator[TestClient]:
+def client(settings: Settings, transformer: CountingTransformer) -> Iterator[TestClient]:
     with TestClient(create_app(settings, transformer)) as client:
         yield client
 
@@ -48,9 +46,7 @@ def create(client: TestClient, body: dict = SAMPLE) -> str:
 
 
 def test_create_then_read_payload(client: TestClient) -> None:
-    created = assert_envelope(
-        client.post("/payload", json=SAMPLE), 201, "Payload created"
-    )
+    created = assert_envelope(client.post("/payload", json=SAMPLE), 201, "Payload created")
     assert created["errors"] is None
 
     read = assert_envelope(
@@ -69,17 +65,13 @@ def test_repeated_request_returns_same_id(
 ) -> None:
     first_id = create(client)
 
-    second = assert_envelope(
-        client.post("/payload", json=SAMPLE), 200, "Payload already exists"
-    )
+    second = assert_envelope(client.post("/payload", json=SAMPLE), 200, "Payload already exists")
 
     assert second["data"] == {"id": first_id}
     assert transformer.total_calls == 6
 
 
-def test_cache_survives_restart(
-    settings: Settings, transformer: CountingTransformer
-) -> None:
+def test_cache_survives_restart(settings: Settings, transformer: CountingTransformer) -> None:
     with TestClient(create_app(settings, transformer)) as client:
         payload_id = create(client, {"list_1": ["a"], "list_2": ["b"]})
 
@@ -89,10 +81,12 @@ def test_cache_survives_restart(
 
     assert transformer.calls == {"a": 1, "b": 1}
 
+
 def test_read_payload_is_cacheable_for_an_hour(client: TestClient) -> None:
     response = client.get(f"/payload/{create(client)}")
 
     assert response.headers["Cache-Control"] == "public, max-age=3600"
+
 
 def test_read_unknown_payload_returns_404(client: TestClient) -> None:
     response = client.get(f"/payload/{uuid.uuid4()}")
@@ -121,9 +115,7 @@ def test_read_malformed_id_returns_422(client: TestClient) -> None:
 def test_invalid_input_returns_422(
     client: TestClient, transformer: CountingTransformer, body: dict, field: str
 ) -> None:
-    response = assert_envelope(
-        client.post("/payload", json=body), 422, "Invalid request"
-    )
+    response = assert_envelope(client.post("/payload", json=body), 422, "Invalid request")
 
     assert response["data"] is None
     assert field in [error["field"] for error in response["errors"]]
@@ -152,9 +144,7 @@ def test_unexpected_error_returns_json_500(settings: Settings) -> None:
     def buggy(value: str) -> str:
         raise RuntimeError("bug")
 
-    with TestClient(
-        create_app(settings, buggy), raise_server_exceptions=False
-    ) as client:
+    with TestClient(create_app(settings, buggy), raise_server_exceptions=False) as client:
         response = client.post("/payload", json=SAMPLE)
 
     body = assert_envelope(response, 500, "Internal server error")
