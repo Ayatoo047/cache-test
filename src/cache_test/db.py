@@ -1,6 +1,11 @@
 """Database engine and session construction."""
 
-from sqlalchemy import Engine, create_engine
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from alembic.migration import MigrationContext
+from sqlalchemy import Engine, create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -28,9 +33,27 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
-def init_db(engine: Engine) -> None:
-    # Schema migrations (e.g. Alembic) are out of scope for this service;
-    # creating missing tables on startup is sufficient for a single schema version.
-    from cache_test import models  # noqa: F401  (registers tables on Base.metadata)
+MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+# The first migration, matching the schema create_all used to build.
+BASELINE_REVISION = "a10eeb321d04"
 
-    Base.metadata.create_all(engine)
+
+def init_db(engine: Engine) -> None:
+    """Bring the schema up to date by running any pending Alembic migrations.
+
+    Running them on startup keeps a single-instance deployment to one command.
+    With several instances, migrations would move to a separate deploy step,
+    so instances don't race to apply them.
+    """
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS_DIR))
+    with engine.begin() as connection:
+        # Reusing the app's connection lets in-memory databases (one per
+        # connection) be migrated, and keeps env.py from opening its own.
+        config.attributes["connection"] = connection
+        unversioned = MigrationContext.configure(connection).get_current_revision() is None
+        if unversioned and inspect(connection).has_table("payloads"):
+            # Created by create_all before migrations existed; its schema
+            # equals the first revision, so record that instead of re-creating.
+            command.stamp(config, BASELINE_REVISION)
+        command.upgrade(config, "head")
