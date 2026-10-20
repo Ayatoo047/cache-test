@@ -146,7 +146,7 @@ The service reads `CACHE_TEST_*` environment variables:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CACHE_TEST_DATABASE_URL` | `sqlite:///./cache.db` | SQLAlchemy URL. SQLite and PostgreSQL are supported. The Docker image uses `sqlite:////data/cache.db` on a volume. |
+| `CACHE_TEST_DATABASE_URL` | `sqlite:///./cache.db` | SQLAlchemy URL. The Docker image uses `sqlite:////data/cache.db` on a volume. Only SQLite is tested; see the PostgreSQL note under shortcuts. |
 | `CACHE_TEST_TRANSFORMER_DELAY_SECONDS` | `0.1` | Delay of the simulated transformer per call, so the benefit of caching is visible |
 
 ## Design
@@ -224,6 +224,11 @@ so tests can pass in their own database and transformer.
 - **The 502 message includes the transformer's error text.** That helps with
   debugging here. With a real external service, it should be replaced with a
   fixed message so internal details don't reach clients.
+- **Only SQLite is tested.** The code avoids SQLite-only SQL: the
+  conflict-tolerant inserts have a PostgreSQL variant, and the migrations use
+  batch mode only on SQLite. Running on PostgreSQL would still need a driver
+  (for example `psycopg`) and a test run against a real server, which this
+  project doesn't include.
 - **Migrations run on startup.** The app applies pending Alembic migrations
   when it starts, which keeps a single-instance deployment to one command.
   With several instances, they would move to a separate deploy step so
@@ -240,6 +245,9 @@ uv run pytest          # unit and integration tests
 uv run ruff check      # lint
 uv run ruff format     # format
 ```
+
+CI (`.github/workflows/ci.yml`) runs the lint, the format check and the tests
+on every push and pull request.
 
 To change the schema, edit `models.py`, then generate a migration and review
 it before committing:
