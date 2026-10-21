@@ -28,13 +28,13 @@ def test_api_key_from_environment(
     assert (api_key.get_secret_value() if api_key else None) == expected
 
 
-def test_api_key_required_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_api_key_not_required_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CACHE_TEST_API_KEY_REQUIRED", raising=False)
 
-    assert Settings().api_key_required is True
-
-
-def test_api_key_requirement_can_be_switched_off(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CACHE_TEST_API_KEY_REQUIRED", "false")
-
     assert Settings().api_key_required is False
+
+
+def test_api_key_requirement_can_be_switched_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CACHE_TEST_API_KEY_REQUIRED", "true")
+
+    assert Settings().api_key_required is True

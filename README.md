@@ -22,11 +22,11 @@ Or locally with [uv](https://docs.astral.sh/uv/):
 
 ```sh
 uv sync
-CACHE_TEST_API_KEY_REQUIRED=false uv run cache-test   # serves on http://localhost:8000
+uv run cache-test                # serves on http://localhost:8000
 ```
 
-Without a key, the service refuses to start unless you switch the requirement
-off, as above. Compose switches it off for you; see [Authentication](#authentication).
+Without a key, the service accepts any request and logs a warning; see
+[Authentication](#authentication) to require one.
 
 Then try it:
 
@@ -65,12 +65,12 @@ Two settings control authentication:
 | `CACHE_TEST_API_KEY` | `CACHE_TEST_API_KEY_REQUIRED` | Result |
 | --- | --- | --- |
 | set | either | Requests to `/payload` must send the key |
-| unset | `true` (default) | The service refuses to start |
-| unset | `false` | Any request is accepted; a warning is logged at startup |
+| unset | `false` (default) | Any request is accepted; a warning is logged at startup |
+| unset | `true` | The service refuses to start |
 
-Requiring a key by default means a deployment can't end up running open by
-accident. Local runs opt out explicitly, and `compose.yaml` sets
-`CACHE_TEST_API_KEY_REQUIRED=false` so the quick start stays one command.
+Authentication is optional by default, so local runs and the quick start need
+no setup. For a real deployment, set `CACHE_TEST_API_KEY_REQUIRED=true`: a
+missing key then stops the service at startup instead of leaving it open.
 
 Clients send the key in an `X-API-Key` header. A missing or wrong key gets a 401 in the usual envelope,
 before the body is validated, so unauthenticated callers learn nothing about
@@ -190,7 +190,7 @@ The service reads `CACHE_TEST_*` environment variables:
 | `CACHE_TEST_DATABASE_URL` | `sqlite:///./cache.db` | SQLAlchemy URL. The Docker image uses `sqlite:////data/cache.db` on a volume. Only SQLite is tested; see the PostgreSQL note under shortcuts. |
 | `CACHE_TEST_TRANSFORMER_DELAY_SECONDS` | `0.1` | Delay of the simulated transformer per call, so the benefit of caching is visible. Must not be negative. |
 | `CACHE_TEST_API_KEY` | unset | Key clients must send as `X-API-Key`; enforced whenever set. Compose reads it from your shell or a `.env` file, which is gitignored. |
-| `CACHE_TEST_API_KEY_REQUIRED` | `true` | Whether the service refuses to start without a key. `false` allows running open, with a warning. Compose defaults it to `false`. |
+| `CACHE_TEST_API_KEY_REQUIRED` | `false` | `true` makes the service refuse to start without a key. With `false`, it runs open and logs a warning. |
 
 ## Design
 
@@ -272,8 +272,9 @@ so tests can pass in their own database and transformer.
   rotation without downtime, or rate limiting; a real deployment would use
   per-client keys or OAuth behind an API gateway. The key also travels in
   plain text, so anything beyond localhost needs TLS in front (for example a
-  reverse proxy). The service requires a key by default; only local setups,
-  including Compose, switch that off, and a warning makes it visible.
+  reverse proxy). Authentication is optional by default to keep the quick
+  start to one command; a startup warning makes that visible, and
+  `CACHE_TEST_API_KEY_REQUIRED=true` makes a missing key a startup error.
 - **Only SQLite is tested.** The code avoids SQLite-only SQL: the
   conflict-tolerant inserts have a PostgreSQL variant, and the migrations use
   batch mode only on SQLite. Running on PostgreSQL would still need a driver
