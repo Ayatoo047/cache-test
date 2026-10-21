@@ -20,12 +20,14 @@ from pydantic import (
     FilePath,
     HttpUrl,
     PositiveInt,
+    SecretStr,
     ValidationError,
     field_validator,
     model_validator,
 )
 from pydantic_settings import BaseSettings, CliSettingsSource, SettingsConfigDict
 
+from cache_test.api.auth import API_KEY_HEADER
 from cache_test.schemas.payload import PayloadCreate
 
 
@@ -36,6 +38,7 @@ class CliSettings(BaseSettings):
         cli_prog_name="cache-cli",
         cli_shortcuts={"host": "h", "repeat": "r", "input": "i", "json": "j", "output": "o"},
         cli_hide_none_type=True,
+        cli_kebab_case=True,
         # Without a prefix, common shell variables such as HOST would silently
         # override the defaults.
         env_prefix="CACHE_CLI_",
@@ -48,6 +51,13 @@ class CliSettings(BaseSettings):
     )
     json_: str | None = Field(None, alias="json", description="JSON input given inline")
     output: Literal["-"] | Path = Field("-", description='output file, "-" for stdout')
+    # Not in the spec's synopsis, so it has no short flag. SecretStr keeps the
+    # key out of reprs and error messages.
+    api_key: SecretStr | None = Field(
+        None,
+        description="API key for the service; prefer the CACHE_CLI_API_KEY environment "
+        "variable, which stays out of shell history and process listings",
+    )
 
     @field_validator("json_")
     @classmethod
@@ -148,6 +158,12 @@ def _describe_http_error(exc: httpx.HTTPError) -> str:
     return f"request failed: {exc}"
 
 
+def _auth_headers(settings: CliSettings) -> dict[str, str]:
+    if settings.api_key is None:
+        return {}
+    return {API_KEY_HEADER: settings.api_key.get_secret_value()}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         settings = parse_args(argv)
@@ -161,7 +177,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         with (
-            httpx.Client(base_url=str(settings.host), timeout=30) as client,
+            httpx.Client(
+                base_url=str(settings.host), timeout=30, headers=_auth_headers(settings)
+            ) as client,
             _open_output(settings.output) as out,
         ):
             run(client, request, settings.repeat, out)

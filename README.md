@@ -22,8 +22,11 @@ Or locally with [uv](https://docs.astral.sh/uv/):
 
 ```sh
 uv sync
-uv run cache-test                # serves on http://localhost:8000
+CACHE_TEST_API_KEY_REQUIRED=false uv run cache-test   # serves on http://localhost:8000
 ```
+
+Without a key, the service refuses to start unless you switch the requirement
+off, as above. Compose switches it off for you; see [Authentication](#authentication).
 
 Then try it:
 
@@ -43,9 +46,42 @@ stored payload, so the id stays the same and the request is much faster.
 The CLI targets the Docker port (8765) by default. Against a local
 `uv run cache-test`, pass `-h http://localhost:8000`.
 
+To use an API key, set it for both the service and the CLI:
+
+```sh
+export CACHE_TEST_API_KEY=change-me CACHE_CLI_API_KEY=change-me
+docker compose up -d --build
+uv run cache-cli -i examples/sample.json
+```
+
 ## API
 
 Interactive docs are at `/docs` while the service runs.
+
+### Authentication
+
+Two settings control authentication:
+
+| `CACHE_TEST_API_KEY` | `CACHE_TEST_API_KEY_REQUIRED` | Result |
+| --- | --- | --- |
+| set | either | Requests to `/payload` must send the key |
+| unset | `true` (default) | The service refuses to start |
+| unset | `false` | Any request is accepted; a warning is logged at startup |
+
+Requiring a key by default means a deployment can't end up running open by
+accident. Local runs opt out explicitly, and `compose.yaml` sets
+`CACHE_TEST_API_KEY_REQUIRED=false` so the quick start stays one command.
+
+Clients send the key in an `X-API-Key` header. A missing or wrong key gets a 401 in the usual envelope,
+before the body is validated, so unauthenticated callers learn nothing about
+the expected input:
+
+```json
+{"requestId": "…", "message": "Invalid or missing API key", "status": 401, "data": null, "errors": null}
+```
+
+`/health` needs no key, so the Docker health check works without credentials.
+The interactive docs have an "Authorize" button for entering the key.
 
 ### `POST /payload`
 
@@ -62,6 +98,7 @@ Both lists must be non-empty and the same length.
 | --- | --- |
 | 201 | Payload created; `data.id` is its identifier |
 | 200 | The same input was seen before; `data.id` is the existing identifier |
+| 401 | Missing or wrong API key (only when a key is configured) |
 | 422 | Invalid input (lists missing, empty, different lengths, or not strings) |
 | 502 | The transformer failed |
 
@@ -70,11 +107,14 @@ Both lists must be non-empty and the same length.
 | Status | Meaning |
 | --- | --- |
 | 200 | `data.output` is the payload |
+| 401 | Missing or wrong API key (only when a key is configured) |
 | 404 | No payload with this id |
 | 422 | The id is not a UUID |
 
-Successful reads send `Cache-Control: public, max-age=3600`, so browsers and
-proxies can serve repeat reads without reaching the service.
+Successful reads send `Cache-Control: private, max-age=3600`, so the client
+can serve repeat reads from its own cache without reaching the service.
+`private` stops shared proxies from storing it, because they would then hand
+the payload to callers without a key.
 
 ### Response envelope
 
@@ -118,6 +158,7 @@ cache-cli [-h|--host URL] [-r|--repeat N] [-i|--input FILE|-] [-j|--json JSON] [
 | `-i`, `--input` | stdin | JSON input file, `-` for stdin |
 | `-j`, `--json` | | JSON input given inline; can't be combined with `--input` |
 | `-o`, `--output` | stdout | Output file, `-` for stdout |
+| `--api-key` | | API key sent as `X-API-Key`. Prefer `CACHE_CLI_API_KEY`, which stays out of shell history and process listings. |
 | `--help` | | Show help |
 
 Each iteration creates the payload and reads it back, then writes one JSON
@@ -147,7 +188,9 @@ The service reads `CACHE_TEST_*` environment variables:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `CACHE_TEST_DATABASE_URL` | `sqlite:///./cache.db` | SQLAlchemy URL. The Docker image uses `sqlite:////data/cache.db` on a volume. Only SQLite is tested; see the PostgreSQL note under shortcuts. |
-| `CACHE_TEST_TRANSFORMER_DELAY_SECONDS` | `0.1` | Delay of the simulated transformer per call, so the benefit of caching is visible |
+| `CACHE_TEST_TRANSFORMER_DELAY_SECONDS` | `0.1` | Delay of the simulated transformer per call, so the benefit of caching is visible. Must not be negative. |
+| `CACHE_TEST_API_KEY` | unset | Key clients must send as `X-API-Key`; enforced whenever set. Compose reads it from your shell or a `.env` file, which is gitignored. |
+| `CACHE_TEST_API_KEY_REQUIRED` | `true` | Whether the service refuses to start without a key. `false` allows running open, with a warning. Compose defaults it to `false`. |
 
 ## Design
 
@@ -224,6 +267,13 @@ so tests can pass in their own database and transformer.
 - **The 502 message includes the transformer's error text.** That helps with
   debugging here. With a real external service, it should be replaced with a
   fixed message so internal details don't reach clients.
+- **One shared API key.** It's enough to keep the service from being open to
+  anyone, but every client shares the key. There is no per-client identity,
+  rotation without downtime, or rate limiting; a real deployment would use
+  per-client keys or OAuth behind an API gateway. The key also travels in
+  plain text, so anything beyond localhost needs TLS in front (for example a
+  reverse proxy). The service requires a key by default; only local setups,
+  including Compose, switch that off, and a warning makes it visible.
 - **Only SQLite is tested.** The code avoids SQLite-only SQL: the
   conflict-tolerant inserts have a PostgreSQL variant, and the migrations use
   batch mode only on SQLite. Running on PostgreSQL would still need a driver

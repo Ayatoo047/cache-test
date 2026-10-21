@@ -89,7 +89,12 @@ class TestLoadRequest:
 
 @pytest.fixture
 def client(tmp_path: Path, transformer: CountingTransformer):
-    settings = Settings(database_url=f"sqlite:///{tmp_path / 'cli.db'}")
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'cli.db'}",
+        # Independent of any CACHE_TEST_API_KEY* in the environment.
+        api_key=None,
+        api_key_required=False,
+    )
     with TestClient(create_app(settings, transformer)) as client:
         yield client
 
@@ -153,3 +158,36 @@ def test_main_summarises_non_json_error_bodies(
 
     assert cli.main(["-j", REQUEST_JSON]) == 1
     assert capsys.readouterr().err.strip() == "cache-cli: server responded 404: Not Found"
+
+
+class TestApiKey:
+    def test_flag_and_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        assert cli.parse_args(["--api-key", "flag-key"]).api_key.get_secret_value() == "flag-key"
+
+        monkeypatch.setenv("CACHE_CLI_API_KEY", "env-key")
+        assert cli.parse_args([]).api_key.get_secret_value() == "env-key"
+
+    def test_key_is_not_shown_in_settings_repr(self) -> None:
+        assert "flag-key" not in repr(cli.parse_args(["--api-key", "flag-key"]))
+
+    @pytest.mark.parametrize("key", [None, "s3cret"], ids=["without-key", "with-key"])
+    def test_main_sends_key_header(self, monkeypatch: pytest.MonkeyPatch, key: str | None) -> None:
+        monkeypatch.delenv("CACHE_CLI_API_KEY", raising=False)
+        seen: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("X-API-Key"))
+            if request.method == "POST":
+                return httpx.Response(201, json={"data": {"id": "abc"}})
+            return httpx.Response(200, json={"data": {"output": "A, B"}})
+
+        real_client = httpx.Client
+        monkeypatch.setattr(
+            cli.httpx,
+            "Client",
+            lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw),
+        )
+        argv = ["-j", REQUEST_JSON] + ([] if key is None else ["--api-key", key])
+
+        assert cli.main(argv) == 0
+        assert seen == [key, key]

@@ -7,16 +7,21 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
+from cache_test.api.auth import require_api_key
 from cache_test.schemas.payload import PayloadCreate, PayloadCreated, PayloadRead
 from cache_test.services.payload import PayloadService
 from cache_test.utils.envelope import ApiResponse, ErrorResponse, _success
 
-router = APIRouter()
+router = APIRouter(
+    dependencies=[Depends(require_api_key)],
+    responses={status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse}},
+)
 
 # A payload never changes once created, but an hour keeps the window short
-# should that ever change (e.g. deletes). Not set on 404s: the id may be
-# created later.
-PAYLOAD_CACHE_CONTROL = "public, max-age=3600"
+# should that ever change (e.g. deletes). "private" because reads may need an
+# API key: a shared proxy must not hand a cached payload to clients without
+# one. Not set on 404s: the id may be created later.
+PAYLOAD_CACHE_CONTROL = "private, max-age=3600"
 
 
 def get_session(request: Request) -> Iterator[Session]:

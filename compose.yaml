@@ -7,6 +7,11 @@ services:
       - "8765:8000"
     environment:
       CACHE_TEST_TRANSFORMER_DELAY_SECONDS: "0.1"
+      # Taken from your shell or a .env file. Whenever a key is set, it's enforced.
+      CACHE_TEST_API_KEY: ${CACHE_TEST_API_KEY:-}
+      # The image requires a key by default; Compose relaxes that so the quick
+      # start is one command. Set it to true for anything beyond local use.
+      CACHE_TEST_API_KEY_REQUIRED: ${CACHE_TEST_API_KEY_REQUIRED:-false}
     volumes:
       # The SQLite database lives here, so the cache survives restarts.
       - cache-data:/data

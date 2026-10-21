@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from cache_test.config import Settings
 from cache_test.main import create_app
@@ -22,7 +23,12 @@ ENVELOPE_KEYS = {"requestId", "message", "status", "data", "errors"}
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(database_url=f"sqlite:///{tmp_path / 'test.db'}")
+    return Settings(
+        database_url=f"sqlite:///{tmp_path / 'test.db'}",
+        # Independent of any CACHE_TEST_API_KEY* in the environment.
+        api_key=None,
+        api_key_required=False,
+    )
 
 
 @pytest.fixture
@@ -85,7 +91,7 @@ def test_cache_survives_restart(settings: Settings, transformer: CountingTransfo
 def test_read_payload_is_cacheable_for_an_hour(client: TestClient) -> None:
     response = client.get(f"/payload/{create(client)}")
 
-    assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert response.headers["Cache-Control"] == "private, max-age=3600"
 
 
 def test_read_unknown_payload_returns_404(client: TestClient) -> None:
@@ -189,3 +195,71 @@ class TestRequestId:
         response = client.get("/health", headers={"X-Request-ID": unsafe})
 
         assert response.json()["requestId"] != unsafe
+
+
+class TestApiKey:
+    KEY = "s3cret-key"
+
+    @pytest.fixture
+    def secured(self, settings: Settings) -> Iterator[TestClient]:
+        settings = settings.model_copy(update={"api_key": SecretStr(self.KEY)})
+        with TestClient(create_app(settings, CountingTransformer())) as client:
+            yield client
+
+    def test_accepts_correct_key(self, secured: TestClient) -> None:
+        response = secured.post("/payload", json=SAMPLE, headers={"X-API-Key": self.KEY})
+
+        assert_envelope(response, 201, "Payload created")
+
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [("post", "/payload"), ("get", f"/payload/{uuid.uuid4()}")],
+        ids=["create", "read"],
+    )
+    @pytest.mark.parametrize("key", [None, "wrong", ""], ids=["missing", "wrong", "empty"])
+    def test_rejects_missing_or_wrong_key(
+        self, secured: TestClient, method: str, path: str, key: str | None
+    ) -> None:
+        headers = {} if key is None else {"X-API-Key": key}
+        response = secured.request(method, path, json=SAMPLE, headers=headers)
+
+        body = assert_envelope(response, 401, "Invalid or missing API key")
+        assert body["data"] is None
+        assert response.headers["WWW-Authenticate"] == "X-API-Key"
+
+    def test_checks_key_before_validating_body(self, secured: TestClient) -> None:
+        # Unauthenticated callers learn nothing about the expected input.
+        response = secured.post("/payload", json={"list_1": ["a"]})
+
+        assert_envelope(response, 401, "Invalid or missing API key")
+
+    def test_key_is_enforced_even_when_not_required(self, settings: Settings) -> None:
+        # The switch only allows running without a key; a configured key
+        # always applies.
+        settings = settings.model_copy(update={"api_key": SecretStr(self.KEY)})
+        assert settings.api_key_required is False
+        with TestClient(create_app(settings, CountingTransformer())) as client:
+            response = client.post("/payload", json=SAMPLE)
+
+        assert_envelope(response, 401, "Invalid or missing API key")
+
+    def test_refuses_to_start_without_key_when_required(self, settings: Settings) -> None:
+        settings = settings.model_copy(update={"api_key_required": True})
+
+        with pytest.raises(RuntimeError, match="CACHE_TEST_API_KEY_REQUIRED=false"):
+            create_app(settings)
+
+    def test_runs_open_when_not_required(self, client: TestClient) -> None:
+        # The default client fixture has no key and the requirement switched off.
+        assert client.post("/payload", json=SAMPLE).status_code == 201
+
+    def test_warns_when_running_open(
+        self, settings: Settings, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        create_app(settings)
+
+        assert "payload endpoints accept any request" in caplog.text
+
+    def test_health_needs_no_key(self, secured: TestClient) -> None:
+        # The Docker health check calls it without credentials.
+        assert_envelope(secured.get("/health"), 200, "Service is healthy")
